@@ -1,0 +1,162 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USERS & AUTHENTICATION
+// ============================================================================
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String   // bcrypt hashed
+  name      String
+  role      String   @default("user") // admin, user, technician
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  schedules     Schedule[]
+  inventoryLogs InventoryLog[]
+  projects      Project[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+// ============================================================================
+// EQUIPMENT & RESOURCES
+// ============================================================================
+
+model Equipment {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  type      String   // Microscope, Spectrometer, etc.
+  location  String
+  status    String   @default("available") // available, booked, maintenance, offline
+  specs     String   @default("{}") // JSON for flexibility
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  schedules Schedule[]
+
+  @@map("equipment")
+}
+
+// ============================================================================
+// SCHEDULING & BOOKINGS
+// ============================================================================
+
+model Schedule {
+  id          Int      @id @default(autoincrement())
+  equipmentId Int
+  equipment   Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startTime   DateTime
+  endTime     DateTime
+  status      String   @default("confirmed") // confirmed, tentative, completed, cancelled
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Indexes for conflict detection
+  @@unique([equipmentId, startTime, endTime], name: "no_overlapping_bookings")
+  @@index([equipmentId])
+  @@index([userId])
+  @@index([startTime])
+  @@map("schedules")
+}
+
+// ============================================================================
+// INVENTORY MANAGEMENT
+// ============================================================================
+
+model InventoryItem {
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String   // Chemicals, Consumables, etc.
+  quantity  Int
+  location  String
+  unit      String   @default("units")
+  expiryDate DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  logs      InventoryLog[]
+
+  @@map("inventory_items")
+}
+
+model InventoryLog {
+  id             Int      @id @default(autoincrement())
+  itemId         Int
+  item           InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  userId         Int
+  user           User     @relation(fields: [userId], references: [id])
+  action         String   // checkout, checkin
+  quantity       Int
+  reason         String   @default("")
+  createdAt      DateTime @default(now())
+
+  @@index([itemId])
+  @@index([userId])
+  @@map("inventory_logs")
+}
+
+// ============================================================================
+// PROJECTS & STUDIES
+// ============================================================================
+
+model Project {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String   @default("")
+  ownerId     Int
+  owner       User     @relation(fields: [ownerId], references: [id])
+  budget      Float    @default(0)
+  status      String   @default("active") // active, completed, archived
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@map("projects")
+}
+
+// ============================================================================
+// AUDIT LOGGING
+// ============================================================================
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String   // create, update, delete, login, logout
+  entity    String   // user, equipment, schedule, inventory
+  entityId  Int
+  oldValue  String   @default("{}")
+  newValue  String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// INDEXES FOR PERFORMANCE
+// ============================================================================
+
+// Additional useful indexes
+// Already defined above for key queries
