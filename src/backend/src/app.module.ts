@@ -18,7 +18,7 @@ import { InventoryModule } from './inventory/inventory.module';
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || 'dev-secret-key',
-      signOptions: { expiresIn: process.env.JWT_EXPIRATION || '7d' },
+      signOptions: { expiresIn: process.env.JWT_EXPIRATION || '7d' as any },
     }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     AuthModule,
